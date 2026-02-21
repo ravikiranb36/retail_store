@@ -1,0 +1,69 @@
+<div class="product-list-container">
+  <h2>Products</h2>
+
+  <form [formGroup]="searchForm" (ngSubmit)="onSearch()">
+    <input type="text" formControlName="q" placeholder="Search products...">
+    <input type="text" formControlName="sku" placeholder="SKU...">
+    <input type="text" formControlName="store_name" placeholder="Store name...">
+    <input type="number" formControlName="min_price" placeholder="Min Price">
+    <input type="number" formControlName="max_price" placeholder="Max Price">
+    <select formControlName="sort">
+      <option value="relevance">Relevance</option>
+      <option value="price_asc">Price Asc</option>
+      <option value="price_desc">Price Desc</option>
+    </select>
+    <button type="submit">Search</button>
+  </form>
+
+  @if (loading) {
+    <div>Loading...</div>
+  }
+
+  @if (noDataFound && !loading) {
+    <div>
+        No products found matching your criteria.
+    </div>
+  }
+
+  @if (products.length > 0 && !loading) {
+    <table>
+        <thead>
+        <tr>
+            <th>SKU</th>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Store</th>
+            <th>Date</th>
+            @if (isStoreManager) {
+                <th>Actions</th>
+            }
+        </tr>
+        </thead>
+        <tbody>
+        @for (product of products; track product.id) {
+            <tr>
+                <td>{{ product.sku }}</td>
+                <td>{{ product.product_name }}</td>
+                <td>{{ product.price | currency }}</td>
+                <td>{{ product.store?.name }}</td>
+                <td>{{ product.date | date }}</td>
+                @if (isStoreManager) {
+                    <td>
+                        <button (click)="onEdit(product)">Edit</button>
+                        <button (click)="onDelete(product)">Delete</button>
+                    </td>
+                }
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <!-- Pagination controls -->
+    <div class="pagination-controls">
+      <button (click)="prevPage()" [disabled]="currentPage === 1">Previous</button>
+      <span>Page {{ currentPage }} of {{ totalPages }}</span>
+      <button (click)="nextPage()" [disabled]="currentPage === totalPages">Next</button>
+      <span>Total: {{ totalCount }}</span>
+    </div>
+  }
+</div>

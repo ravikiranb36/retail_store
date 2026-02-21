@@ -1,0 +1,37 @@
+<div class="store-list-container">
+  <h2>Stores</h2>
+
+  @if (isAdmin) {
+    <form [formGroup]="storeForm" (ngSubmit)="onSubmit()">
+        <input type="text" formControlName="name" placeholder="Store Name" required>
+        <button type="submit" [disabled]="!storeForm.valid || loading">
+            @if (loading) {
+                <span>Creating...</span>
+            } @else {
+                <span>Create Store</span>
+            }
+        </button>
+        @if (error) {
+            <div class="error">{{ error }}</div>
+        }
+    </form>
+  } @else {
+      <div class="info-message">
+          Only Admins can create new stores.
+      </div>
+  }
+
+  @if (loading && !stores.length) {
+    <div>Loading stores...</div>
+  }
+
+  <ul>
+    @for (store of stores; track store.id) {
+        <li>
+            {{ store.name }} (ID: {{ store.id }})
+        </li>
+    } @empty {
+        <li>No stores found.</li>
+    }
+  </ul>
+</div>

@@ -1,0 +1,16 @@
+<div class="dashboard-container">
+  <aside class="sidebar">
+    <h2>Retail Store</h2>
+    <nav>
+      <ul>
+        <li><a routerLink="/products" routerLinkActive="active">Products</a></li>
+        <li><a routerLink="/products/upload" routerLinkActive="active">Upload Products</a></li>
+        <li><a routerLink="/stores" routerLinkActive="active">Stores</a></li>
+        <li><a href="#" (click)="logout()">Logout</a></li>
+      </ul>
+    </nav>
+  </aside>
+  <main class="main-content">
+    <router-outlet></router-outlet>
+  </main>
+</div>

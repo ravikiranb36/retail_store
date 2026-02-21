@@ -1,0 +1,48 @@
+<div class="product-edit-container">
+  <h3>Edit Product</h3>
+  @if (isLoading) {
+    <div>Loading product details...</div>
+  } @else {
+    <form [formGroup]="editForm" (ngSubmit)="onSubmit()">
+      <div class="form-group">
+        <label for="sku">SKU</label>
+        <input id="sku" type="text" formControlName="sku" placeholder="SKU" readonly>
+      </div>
+      <div class="form-group">
+        <label for="product_name">Product Name</label>
+        <input id="product_name" type="text" formControlName="product_name" placeholder="Product Name">
+      </div>
+      <div class="form-group">
+        <label for="price">Price</label>
+        <input id="price" type="number" formControlName="price" placeholder="Price">
+      </div>
+      <div class="form-group">
+        <label for="date">Date</label>
+        <input id="date" type="date" formControlName="date">
+      </div>
+      <div class="form-group">
+        <label for="store_id">Store</label>
+        <select id="store_id" formControlName="store_id">
+            <option value="" disabled>Select Store</option>
+            @for (store of stores; track store.id) {
+                <option [value]="store.id">{{ store.name }}</option>
+            }
+        </select>
+      </div>
+      <button type="submit" [disabled]="!editForm.valid || isProcessing">
+        @if (isProcessing) {
+            <span>Updating...</span>
+        } @else {
+            <span>Update Product</span>
+        }
+      </button>
+    </form>
+  }
+
+  @if (successMessage) {
+    <div class="status-message success">{{ successMessage }}</div>
+  }
+  @if (errorMessage) {
+    <div class="status-message error">{{ errorMessage }}</div>
+  }
+</div>
