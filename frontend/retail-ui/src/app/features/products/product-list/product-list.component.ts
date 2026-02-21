@@ -27,6 +27,15 @@ export class ProductListComponent implements OnInit {
   nextPageUrl: string | null = null;
   prevPageUrl: string | null = null;
 
+  // Internationalization state (currency only)
+  userCurrency = 'INR'; // Default is INR, can be changed by user
+  userLocale = navigator.language || 'en-IN'; // Use browser locale for date formatting
+  availableCurrencies = [
+    { code: 'INR', label: 'Indian Rupee' },
+    { code: 'USD', label: 'US Dollar' },
+    { code: 'EUR', label: 'Euro' }
+  ];
+
   constructor(
     private productService: ProductService,
     private fb: FormBuilder,
@@ -46,6 +55,8 @@ export class ProductListComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Default currency is INR
+    this.userCurrency = 'INR';
     this.loadProducts();
   }
 
@@ -76,6 +87,13 @@ export class ProductListComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  onCurrencyChange(event: Event) {
+    const selectElement = event.target as HTMLSelectElement;
+    if (selectElement && selectElement.value) {
+      this.userCurrency = selectElement.value;
+    }
   }
 
   onSearch() {

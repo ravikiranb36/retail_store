@@ -1,6 +1,14 @@
 <div class="product-list-container">
   <h2>Products</h2>
 
+  <!-- Currency selector only -->
+  <div class="i18n-controls">
+    <label for="currency-select">Currency:</label>
+    <select id="currency-select" [value]="userCurrency" (change)="onCurrencyChange($event)">
+      <option *ngFor="let cur of availableCurrencies" [value]="cur.code">{{ cur.label }}</option>
+    </select>
+  </div>
+
   <form [formGroup]="searchForm" (ngSubmit)="onSearch()">
     <input type="text" formControlName="q" placeholder="Search products...">
     <input type="text" formControlName="sku" placeholder="SKU...">
@@ -44,9 +52,9 @@
             <tr>
                 <td>{{ product.sku }}</td>
                 <td>{{ product.product_name }}</td>
-                <td>{{ product.price | currency }}</td>
+                <td>{{ product.price | currency:userCurrency:'symbol':'1.2-2' }}</td>
                 <td>{{ product.store?.name }}</td>
-                <td>{{ product.date | date }}</td>
+                <td>{{ product.date | date:'medium':userLocale }}</td>
                 @if (isStoreManager) {
                     <td>
                         <button (click)="onEdit(product)">Edit</button>
