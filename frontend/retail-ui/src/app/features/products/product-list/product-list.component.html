@@ -10,12 +10,12 @@
   </div>
 
   <form [formGroup]="searchForm" (ngSubmit)="onSearch()">
-    <input type="text" formControlName="q" placeholder="Search products...">
+    <input type="text" formControlName="search" placeholder="Search products...">
     <input type="text" formControlName="sku" placeholder="SKU...">
     <input type="text" formControlName="store_name" placeholder="Store name...">
     <input type="number" formControlName="min_price" placeholder="Min Price">
     <input type="number" formControlName="max_price" placeholder="Max Price">
-    <select formControlName="sort">
+    <select formControlName="ordering">
       <option value="relevance">Relevance</option>
       <option value="price_asc">Price Asc</option>
       <option value="price_desc">Price Desc</option>

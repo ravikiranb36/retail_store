@@ -2,6 +2,8 @@ from django.contrib.auth.models import AbstractUser, Group
 from django.db import models
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
+from django.utils.functional import cached_property
+
 
 class User(AbstractUser):
     """
@@ -31,6 +33,10 @@ class User(AbstractUser):
         """
         group, _ = Group.objects.get_or_create(name=role_name)
         self.groups.add(group)
+
+    @cached_property
+    def my_roles(self):
+        return set(self.groups.values_list('name', flat=True))
 
 @receiver(post_migrate)
 def create_roles(sender, **kwargs):

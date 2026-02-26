@@ -44,12 +44,12 @@ export class ProductListComponent implements OnInit {
     private authService: AuthService
   ) {
     this.searchForm = this.fb.group({
-      q: [''],
+      search: [''],
       sku: [''],
       store_name: [''],
       min_price: [''],
       max_price: [''],
-      sort: ['relevance']
+      ordering: ['relevance']
     });
     this.isStoreManager = this.authService.isStoreManager();
   }
@@ -66,8 +66,21 @@ export class ProductListComponent implements OnInit {
     this.products = [];
     this.currentPage = page;
 
-    // Add page and page_size to search params
-    const params = { ...this.searchForm.value, page: this.currentPage, page_size: this.pageSize };
+    // Map frontend form fields to backend filter params
+    const formValue = this.searchForm.value;
+    const params: any = {
+      ...formValue,
+      page: this.currentPage,
+      page_size: this.pageSize
+    };
+    // Remove empty ordering (default relevance)
+    if (!params.ordering || params.ordering === 'relevance') {
+      delete params.ordering;
+    } else if (params.ordering === 'price_asc') {
+      params.ordering = 'price';
+    } else if (params.ordering === 'price_desc') {
+      params.ordering = '-price';
+    }
     this.productService.searchProducts(params).subscribe({
       next: (data) => {
         // Handle paginated response

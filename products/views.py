@@ -8,17 +8,21 @@ from dramatiq.results import Results
 from dramatiq.results.errors import ResultTimeout
 from redis.exceptions import ConnectionError as RedisConnectionError
 from rest_framework import status
+from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Product, Store
 from .permissions import IsStoreManager
 from .serializers import ProductSerializer, StoreSerializer, PriceFeedCSVUploadSerializer, ProductUpdateSerializer, \
     ProductCreateSerializer
 from .tasks import process_csv_price_feed
+from .filters import ProductFilter
 
 
 class StandardResultsSetPagination(PageNumberPagination):
@@ -33,17 +37,15 @@ class PriceFeedCSVUploadView(APIView):
 
     def post(self, request, format=None):
         serializer = PriceFeedCSVUploadSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response({'status': 'error', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
         file_obj = serializer.validated_data['file']
-
         try:
             # Read and decode content
             content = file_obj.read().decode('utf-8')
             message = process_csv_price_feed.send(content)
 
             return Response({'status': 'success', 'task_id': message.message_id}, status=status.HTTP_202_ACCEPTED)
-        except (RedisConnectionError, ConnectionRefusedError) as e:
+        except (RedisConnectionError, ConnectionRefusedError):
             return Response({'status': 'error', 'error': 'Service unavailable. Could not connect to task queue.'},
                             status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception as e:
@@ -55,34 +57,21 @@ class PriceFeedView(APIView):
 
     def post(self, request):
         serializer = ProductCreateSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'status': 'success', 'data': serializer.data}, status=status.HTTP_201_CREATED)
-        return Response({'status': 'error', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'status': 'success', 'data': serializer.data}, status=status.HTTP_201_CREATED)
 
     def put(self, request, pk=None):
-        # If pk is provided in URL, update that specific product
         if pk:
             product = get_object_or_404(Product, pk=pk)
-            serializer = ProductUpdateSerializer(product, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({'status': 'success', 'data': ProductSerializer(product).data})
-            return Response({'status': 'error', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Legacy support for updating by store_id and sku in body (if needed, or remove)
-        # For now, let's keep it but prioritize ID based update if pk is present
-        serializer = ProductUpdateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response({'status': 'error', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-        data = serializer.validated_data
-        product = get_object_or_404(Product, store_id=data['store_id'], sku=data['sku'])
-        update_fields = {}
-        for field in ['product_name', 'price', 'date']:
-            if field in data:
-                setattr(product, field, data[field])
-                update_fields[field] = data[field]
-        product.save(update_fields=list(update_fields.keys()))
+        else:
+            serializer = ProductUpdateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
+            product = get_object_or_404(Product, store_id=data['store_id'], sku=data['sku'])
+        serializer = ProductUpdateSerializer(product, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response({'status': 'success', 'data': ProductSerializer(product).data})
 
 
@@ -97,10 +86,9 @@ class PriceFeedDetailView(APIView):
     def put(self, request, pk):
         product = get_object_or_404(Product, pk=pk)
         serializer = ProductUpdateSerializer(product, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'status': 'success', 'data': ProductSerializer(product).data})
-        return Response({'status': 'error', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'status': 'success', 'data': ProductSerializer(product).data})
 
     def delete(self, request, pk):
         product = get_object_or_404(Product, pk=pk)
@@ -109,61 +97,16 @@ class PriceFeedDetailView(APIView):
                         status=status.HTTP_204_NO_CONTENT)
 
 
-class PriceFeedSearchView(APIView):
+class PriceFeedSearchView(ListAPIView):
     permission_classes = [AllowAny]
     pagination_class = StandardResultsSetPagination
-
-    def get(self, request):
-        query = request.GET.get('q', '').strip()
-        store_name = request.GET.get('store_name')
-        min_price = request.GET.get('min_price')
-        max_price = request.GET.get('max_price')
-        sku = request.GET.get('sku')
-        sort = request.GET.get('sort', 'relevance')
-
-        qs = Product.objects.select_related('store').all()
-
-        if query:
-            words = [w for w in query.split() if w]
-            q_obj = Q()
-            for word in words:
-                q_obj |= Q(product_name__icontains=word) | Q(sku__icontains=word)
-            qs = qs.filter(q_obj)
-        else:
-            words = []
-
-        if store_name:
-            qs = qs.filter(store__name__icontains=store_name)
-        if min_price:
-            qs = qs.filter(price__gte=min_price)
-        if max_price:
-            qs = qs.filter(price__lte=max_price)
-        if sku:
-            qs = qs.filter(sku__icontains=sku)
-
-        if sort == 'price_asc':
-            qs = qs.order_by('price')
-        elif sort == 'price_desc':
-            qs = qs.order_by('-price')
-        else:
-            if words:
-                match_expr = reduce(
-                    lambda acc, w: acc + Case(When(product_name__icontains=w, then=1), default=0, output_field=IntegerField()) + Case(When(sku__icontains=w, then=1), default=0, output_field=IntegerField()),
-                    words,
-                    Value(0, output_field=IntegerField())
-                )
-                qs = qs.annotate(match_score=match_expr).order_by('-match_score', 'price')
-            else:
-                qs = qs.order_by('price')
-
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(qs, request, view=self)
-        if page is not None:
-            serializer = ProductSerializer(page, many=True)
-            return paginator.get_paginated_response(serializer.data)
-
-        serializer = ProductSerializer(qs, many=True)
-        return Response({'status': 'success', 'data': serializer.data})
+    serializer_class = ProductSerializer
+    queryset = Product.objects.select_related('store').all()
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = ProductFilter
+    search_fields = ['product_name', 'sku']
+    ordering_fields = ['price']
+    ordering = ['price']
 
 
 class StoreListCreateView(APIView):
@@ -186,10 +129,9 @@ class StoreListCreateView(APIView):
 
     def post(self, request):
         serializer = StoreSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'status': 'success', 'data': serializer.data}, status=status.HTTP_201_CREATED)
-        return Response({'status': 'error', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'status': 'success', 'data': serializer.data}, status=status.HTTP_201_CREATED)
 
 
 class StoreDetailView(APIView):
@@ -209,10 +151,9 @@ class StoreDetailView(APIView):
     def put(self, request, pk):
         store = self.get_object(pk)
         serializer = StoreSerializer(store, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'status': 'success', 'data': serializer.data})
-        return Response({'status': 'error', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'status': 'success', 'data': serializer.data})
 
 
 class CSVTaskStatusView(APIView):
@@ -248,9 +189,6 @@ class CSVTaskStatusView(APIView):
             return Response({'status': 'error', 'error': 'Service unavailable. Could not connect to results backend.'},
                             status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception as e:
-            # If the exception is from the actor execution (e.g. validation error inside the task),
-            # get_result re-raises it. We should catch it and return it as an error status.
-            # We use repr(e) to get more details if str(e) is empty or unhelpful
             error_msg = str(e)
             if not error_msg:
                 error_msg = repr(e)
